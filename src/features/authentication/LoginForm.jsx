@@ -8,14 +8,22 @@ import { useLogin } from '../authentication/useLogin.js';
 
 function LoginForm() {
   const [email, setEmail] = useState('test@example.com');
-  const [password, setPassword] = useState('test1234');
+  const [password, setPassword] = useState('test123');
 
   const { login, isLoading } = useLogin();
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!email || !password) return;
-    login({ email, password });
+    login(
+      { email, password },
+      {
+        onSettled: () => {
+          setEmail('');
+          setPassword('');
+        },
+      }
+    );
   }
 
   return (
