@@ -1,13 +1,20 @@
-import styled from "styled-components";
-import BookingDataBox from "../../features/bookings/BookingDataBox";
+import { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import BookingDataBox from '../../features/bookings/BookingDataBox';
 
-import Row from "../../ui/Row";
-import Heading from "../../ui/Heading";
-import ButtonGroup from "../../ui/ButtonGroup";
-import Button from "../../ui/Button";
-import ButtonText from "../../ui/ButtonText";
+import Row from '../../ui/Row';
+import Heading from '../../ui/Heading';
+import ButtonGroup from '../../ui/ButtonGroup';
+import Button from '../../ui/Button';
+import ButtonText from '../../ui/ButtonText';
+import Spinner from '../../ui/Spinner';
+import Checkbox from '../../ui/Checkbox';
 
-import { useMoveBack } from "../../hooks/useMoveBack";
+import { formatCurrency } from '../../utils/helpers.js';
+import { useMoveBack } from '../../hooks/useMoveBack';
+import { useBooking } from '../bookings/useBooking.js';
+import { useSettings } from '../settings/useSettings.js';
+import { useCheckin } from '../check-in-out/useCheckin.js';
 
 const Box = styled.div`
   /* Box */
@@ -18,33 +25,75 @@ const Box = styled.div`
 `;
 
 function CheckinBooking() {
+  const [confirmPaid, setConfirmPaid] = useState(false);
+  const [addBreakfast, setAddBreakfast] = useState(false);
+
+  const { booking, isLoading } = useBooking();
+  const { settings, isLoading: isLoadingSettings } = useSettings();
+
+  useEffect(() => setConfirmPaid(booking?.is_paid ?? false), [booking]);
+
   const moveBack = useMoveBack();
+  const { checkin, isCheckingIn } = useCheckin();
 
-  const booking = {};
+  if (isLoading || isLoadingSettings) return <Spinner />;
 
-  const {
-    id: bookingId,
-    guests,
-    totalPrice,
-    numGuests,
-    hasBreakfast,
-    numNights,
-  } = booking;
+  const { id: bookingId, guests, total_price, num_guests, has_breakfast, num_night } = booking;
 
-  function handleCheckin() {}
+  const optionalBreakfastPrice = settings.breakfast_price * num_night * num_guests;
+
+  function handleCheckin() {
+    if (!confirmPaid) return;
+
+    if (addBreakfast) {
+      checkin({
+        bookingId,
+        breakfast: {
+          has_breakfast: true,
+          extras_price: optionalBreakfastPrice,
+          total_price: total_price + optionalBreakfastPrice,
+        },
+      });
+    } else {
+      checkin({ bookingId, breakfast: {} });
+    }
+  }
 
   return (
     <>
-      <Row type="horizontal">
-        <Heading as="h1">Check in booking #{bookingId}</Heading>
+      <Row type='horizontal'>
+        <Heading as='h1'>Check in booking #{bookingId}</Heading>
         <ButtonText onClick={moveBack}>&larr; Back</ButtonText>
       </Row>
 
       <BookingDataBox booking={booking} />
 
+      {!has_breakfast && (
+        <Box>
+          <Checkbox
+            checked={addBreakfast}
+            onChange={() => {
+              setAddBreakfast((add) => !add);
+              setConfirmPaid(false);
+            }}
+            id='breakfast'
+          >
+            Want to add Breakfast for {formatCurrency(optionalBreakfastPrice)}?
+          </Checkbox>
+        </Box>
+      )}
+
+      <Box>
+        <Checkbox checked={confirmPaid} onChange={() => setConfirmPaid((confirm) => !confirm)} id='confirm' disabled={confirmPaid || isCheckingIn}>
+          I confirm that {guests.full_name} has paid the total amount of {!addBreakfast ? formatCurrency(total_price) : `${formatCurrency(total_price + optionalBreakfastPrice)} (${formatCurrency(total_price)} + ${formatCurrency(optionalBreakfastPrice)})`}
+        </Checkbox>
+      </Box>
+
       <ButtonGroup>
-        <Button onClick={handleCheckin}>Check in booking #{bookingId}</Button>
-        <Button variation="secondary" onClick={moveBack}>
+        <Button onClick={handleCheckin} disabled={!confirmPaid || isCheckingIn}>
+          Check in booking #{bookingId}
+        </Button>
+        <Button variation='secondary' onClick={moveBack}>
           Back
         </Button>
       </ButtonGroup>
